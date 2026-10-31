@@ -7,10 +7,21 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
+venv/
 
+.env
 .env*
 !.env.example
 
 # Generated stores. The supplied CSVs and policy PDF in data/ stay tracked.
 var/
+var/outbox/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
