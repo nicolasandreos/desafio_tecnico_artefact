@@ -12,6 +12,7 @@ dependencies = [
     "openai",
     "chromadb",
     "pandas",
+    "resend",
 ]
 
 [project.optional-dependencies]

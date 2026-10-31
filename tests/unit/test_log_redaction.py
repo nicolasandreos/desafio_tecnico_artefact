@@ -25,11 +25,12 @@ class _Boom:
 def test_redact_drops_api_keys_emails_and_six_digit_codes() -> None:
     """API keys, email addresses, and six-digit codes are removed from log text."""
     cleaned = redact(
-        "key sk-abcDEF1234567890 email buyer@example.com "
-        "phone (67) 99812-3456 code 123456"
+        "key sk-abcDEF1234567890 resend re_abcDEF1234567890 "
+        "email buyer@example.com phone (67) 99812-3456 code 123456"
     )
 
     assert "sk-abcDEF1234567890" not in cleaned
+    assert "re_abcDEF1234567890" not in cleaned
     assert "buyer@example.com" not in cleaned
     assert "99812-3456" not in cleaned
     assert "123456" not in cleaned
@@ -62,7 +63,7 @@ def test_missing_csv_is_logged_without_secrets(
 ) -> None:
     """A missing CSV is logged with the file name and without credentials."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-supersecretvalue1")
-    monkeypatch.setenv("SMTP_PASSWORD", "smtp-secret-value")
+    monkeypatch.setenv("RESEND_API_KEY", "re_secretvalue123")
     get_logger().propagate = True
     with caplog.at_level(logging.ERROR, logger="emporio_agent"):
         with pytest.raises(FileNotFoundError, match="categories.csv"):
@@ -71,7 +72,7 @@ def test_missing_csv_is_logged_without_secrets(
     assert "missing_file" in caplog.text
     assert "categories.csv" in caplog.text
     assert "sk-supersecretvalue1" not in caplog.text
-    assert "smtp-secret-value" not in caplog.text
+    assert "re_secretvalue123" not in caplog.text
 
 
 def test_missing_policy_pdf_is_logged_without_secrets(

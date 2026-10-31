@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import smtplib
-from email.message import EmailMessage
-from pathlib import Path
+import html
 from datetime import datetime, timezone
+from pathlib import Path
+
+import resend
 
 from emporio_agent.config import Settings, load_settings
 from emporio_agent.logging import log_failure
@@ -39,40 +40,45 @@ class OutboxSender:
         path.write_text(f"order_id: {order_id}\ncode: {code}\n", encoding="utf-8")
 
 
-class SmtpSender:
-    """Send the code through optional SMTP settings."""
+class ResendSender:
+    """Send the ownership code as HTML through Resend."""
 
     def __init__(self, settings: Settings) -> None:
-        """Keep SMTP settings on the sender. They are not logged."""
-        self._settings = settings
+        """Keep the Resend key and from address. They are not logged."""
+        self._api_key = settings.resend_api_key or ""
+        self._from_address = settings.resend_from or ""
 
     def send(self, to_address: str, code: str, order_id: str) -> None:
-        """Send a short Portuguese message containing the code."""
-        message = EmailMessage()
-        message["From"] = self._settings.smtp_user or "emporio@localhost"
-        message["To"] = to_address
-        message["Subject"] = f"Codigo do pedido {order_id}"
-        message.set_content(
-            f"Seu codigo de confirmacao do pedido e {code}. Ele expira em 15 minutos."
+        """Send a short Portuguese HTML message containing the code."""
+        if self._api_key == "" or self._from_address == "":
+            raise RuntimeError("Resend is not configured")
+        resend.api_key = self._api_key
+        resend.Emails.send(
+            {
+                "from": self._from_address,
+                "to": [to_address],
+                "subject": f"Codigo do pedido {order_id}",
+                "html": _ownership_html(order_id, code),
+            }
         )
-        host = self._settings.smtp_host or ""
-        port = int(self._settings.smtp_port or "587")
-        try:
-            with smtplib.SMTP(host, port, timeout=30) as client:
-                client.starttls()
-                if self._settings.smtp_user and self._settings.smtp_password:
-                    client.login(self._settings.smtp_user, self._settings.smtp_password)
-                client.send_message(message)
-        except Exception as exc:
-            log_failure("code_not_sent", sender_error=type(exc).__name__)
-            raise
 
 
-def build_sender() -> InMemorySender | OutboxSender | SmtpSender:
-    """Return SMTP when it is configured, otherwise the local outbox."""
+def _ownership_html(order_id: str, code: str) -> str:
+    """Return the ownership message as HTML. Callers must not log this body."""
+    safe_order = html.escape(order_id, quote=True)
+    safe_code = html.escape(code, quote=True)
+    return (
+        "<p>Seu codigo de confirmacao do pedido "
+        f"<strong>{safe_order}</strong> e <strong>{safe_code}</strong>. "
+        "Ele expira em 15 minutos.</p>"
+    )
+
+
+def build_sender() -> InMemorySender | OutboxSender | ResendSender:
+    """Return Resend when it is configured, otherwise the local outbox."""
     settings = load_settings()
-    if settings.smtp_host:
-        return SmtpSender(settings)
+    if settings.resend_api_key and settings.resend_from:
+        return ResendSender(settings)
     return OutboxSender(settings.outbox_dir)
 
 

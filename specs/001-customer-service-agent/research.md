@@ -66,13 +66,13 @@ Decisions below close the technical choices for the prototype. Class and functio
 
 **Alternatives considered**: Treating the order id as proof of ownership was rejected by the clarified spec. Returning the tracking code with the status was rejected because the allowed field list does not include it.
 
-## Decision: OTP delivery is a swappable sender
+## Decision: OTP delivery uses Resend HTML, with a local outbox fallback
 
-**Decision**: The order service calls a mail sender interface. Tests use an in-memory sender. If SMTP settings are present, a sender can deliver the message. Otherwise the prototype writes the message to a local outbox that is not shown in the chat. The code stored in SQLite is a hash, not the raw code. A new code replaces the previous hash.
+**Decision**: The order service calls a mail sender interface. Tests use an in-memory sender. When `RESEND_API_KEY` and `RESEND_FROM` are set, the sender delivers one HTML message through the Resend Python SDK (`resend.Emails.send`). Otherwise the prototype writes the code to a local outbox that is not shown in the chat. The code stored in SQLite is a hash, not the raw code. A new code replaces the previous hash.
 
-**Rationale**: The sample emails use fictional domains, so a take-home demo cannot depend on a real inbox. The spec still requires a real send step and a check that the code is correct, valid, and unexpired. The chat must not display the code or the email address.
+**Rationale**: The spec requires a real send step and a check that the code is correct, valid, and unexpired. The chat must not display the code or the email address. Resend sends that HTML message in one SDK call, so the prototype does not carry its own SMTP client. The SDK reads the key from `resend.api_key` immediately before the call. Sample emails use fictional domains, so a demo without Resend credentials still uses the local outbox.
 
-**Alternatives considered**: Printing the code in the assistant reply was rejected because it skips the ownership check. A third-party email vendor was rejected as extra infrastructure.
+**Alternatives considered**: Printing the code in the assistant reply was rejected because it skips the ownership check. A hand-rolled SMTP client was rejected because it reimplements delivery the Resend SDK already provides.
 
 ## Decision: Session persistence is justified and limited
 

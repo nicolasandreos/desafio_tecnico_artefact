@@ -10,10 +10,8 @@ _SECRET_NAMES = (
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
     "OS_SECURITY_KEY",
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASSWORD",
+    "RESEND_API_KEY",
+    "RESEND_FROM",
 )
 
 
@@ -24,10 +22,8 @@ class Settings:
     openai_api_key: str | None
     openai_model: str | None
     os_security_key: str | None
-    smtp_host: str | None
-    smtp_port: str | None
-    smtp_user: str | None
-    smtp_password: str | None
+    resend_api_key: str | None
+    resend_from: str | None
     data_dir: Path
     sqlite_path: Path
     session_db_path: Path
@@ -42,10 +38,8 @@ def load_settings() -> Settings:
         openai_api_key=_optional("OPENAI_API_KEY"),
         openai_model=_optional("OPENAI_MODEL"),
         os_security_key=_optional("OS_SECURITY_KEY"),
-        smtp_host=_optional("SMTP_HOST"),
-        smtp_port=_optional("SMTP_PORT"),
-        smtp_user=_optional("SMTP_USER"),
-        smtp_password=_optional("SMTP_PASSWORD"),
+        resend_api_key=_optional("RESEND_API_KEY"),
+        resend_from=_optional("RESEND_FROM"),
         data_dir=Path(os.environ.get("DATA_DIR", "data")),
         sqlite_path=Path(os.environ.get("SQLITE_PATH", "var/emporio.db")),
         session_db_path=Path(os.environ.get("SESSION_DB_PATH", "var/sessions.db")),

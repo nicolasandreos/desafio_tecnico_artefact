@@ -30,7 +30,7 @@ Set these variables in `.env`. Do not commit that file.
 | `SQLITE_PATH` | Operational database file. Default `var/emporio.db`, outside `data/` |
 | `SESSION_DB_PATH` | AgentOS session file. Default `var/sessions.db` |
 | `CHROMA_PATH` | Local Chroma directory. Default `var/chroma` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Optional. When absent, codes go to the local outbox |
+| `RESEND_API_KEY`, `RESEND_FROM` | Optional. When both are set, the ownership code is sent as HTML through Resend. When either is absent, codes go to the local outbox |
 
 ## Load the store data
 

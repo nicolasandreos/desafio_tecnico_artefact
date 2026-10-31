@@ -14,7 +14,7 @@ The prototype uses one Agno agent served by AgentOS. Operational questions run a
 
 **Language/Version**: Python 3.13 or newer
 
-**Primary Dependencies**: Agno (agent and tools), AgentOS (exposure and sessions), OpenAI (chat and embeddings), Agno Knowledge, ChromaDB, SQLite, Pandas, Pytest
+**Primary Dependencies**: Agno (agent and tools), AgentOS (exposure and sessions), OpenAI (chat and embeddings), Agno Knowledge, ChromaDB, SQLite, Pandas, Resend (HTML ownership-code mail), Pytest
 
 **Storage**: SQLite for catalog, orders, promotions, customers, ownership codes, and session grants. A second SQLite file for AgentOS conversation history. Local ChromaDB for policy chunks. The ingest source is the repository folder `data/`: six CSVs and `políticas_da_loja.pdf`. Those files are not the query source. `DATA_DIR` overrides that folder when set. Generated SQLite and Chroma files go under `var/`, not into `data/`.
 
@@ -87,9 +87,9 @@ Pandas ingest sits beside this path. It runs before the first conversation and r
 | `services` | Matching rules, the five-product cap, active promotions, the ownership code, and the order field allow-list. |
 | `data` | Parameterized SQL, ingest from Pandas, and schema creation. |
 | `knowledge` | Build the policy index with semantic chunking and `text-embedding-3-small`. Search it for a question. |
-| `mail` | Send the six-digit code, or capture it in the test outbox. Hide the address and the code from the agent result. |
-| `config` | Read paths, the OpenAI key, the chat model id, and optional SMTP settings from the environment. |
-| `logging` | English error logs for ingest, mail, and order failures. Never an API key, email, phone, ownership code, or SMTP password. |
+| `mail` | Send the six-digit code as HTML through Resend, or capture it in the local outbox when Resend is not configured. Hide the address and the code from the agent result. |
+| `config` | Read paths, the OpenAI key, the chat model id, and optional Resend settings (`RESEND_API_KEY`, `RESEND_FROM`) from the environment. |
+| `logging` | English error logs for ingest, mail, and order failures. Never an API key, email, phone, ownership code, or Resend API key. |
 
 ## Data Ingestion
 
@@ -143,7 +143,7 @@ Unhandled exceptions do not return a stack trace to the customer and do not chan
 
 ## Security Considerations
 
-- `OPENAI_API_KEY`, `OS_SECURITY_KEY`, and SMTP secrets live in the environment or a local `.env` that is not committed. An `.env.example` lists the names only.
+- `OPENAI_API_KEY`, `OS_SECURITY_KEY`, and `RESEND_API_KEY` live in the environment or a local `.env` that is not committed. An `.env.example` lists the names only.
 - Order SQL selects only the requested subset of `status`, `order_date`, `total_brl`, product name, and quantity. It does not use `SELECT *`.
 - The ownership code is stored as a hash. It expires 15 minutes after send. A newer code replaces it.
 - `session_id` is taken from the run context so the model cannot present another session's grant.
@@ -170,7 +170,7 @@ Unhandled exceptions do not return a stack trace to the customer and do not chan
 | Chroma only for the PDF | Policy search can quote the document | A vector store for one file | The task requires RAG and forbids vector search for orders and prices |
 | Semantic chunking | Chunks follow the policy topics | Slightly more ingest work than a fixed window | The task requires it. CSVs are not chunked |
 | `text-embedding-3-small` | The required embedding model | An OpenAI call during ingest and policy search | Catalog queries do not pay this cost |
-| In-memory or outbox mail | The demo runs with fictional email domains | A reviewer must read the outbox to type the code | Real SMTP remains optional through the same sender interface |
+| Resend HTML mail, with an outbox fallback | A real send is one SDK call. The demo still runs when fictional domains cannot receive mail | A reviewer without Resend credentials reads the outbox to type the code | The same sender interface keeps tests in memory and leaves the vendor call optional |
 | Session SQLite | Follow-ups and the in-session grant work | A second file | The spec requires both, and the file is not used as a fact source |
 | English tool payloads | Tests and logs stay stable and match the constitution | The model must phrase the Portuguese reply | Instructions forbid adding fields the payload does not contain |
 

@@ -12,6 +12,7 @@ _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _PHONE = re.compile(r"(?:\+\d{1,3}[\s-]?)?(?:\(\d{2}\)[\s-]?)?\d{4,5}-\d{4}")
 _CODE = re.compile(r"\b\d{6}\b")
 _API_KEY = re.compile(r"\bsk-[A-Za-z0-9_\-]{8,}\b")
+_RESEND_KEY = re.compile(r"\bre_[A-Za-z0-9_\-]{8,}\b")
 
 _DROPPED_FIELDS = frozenset(
     {
@@ -21,7 +22,7 @@ _DROPPED_FIELDS = frozenset(
         "phone",
         "code",
         "ownership_code",
-        "smtp_password",
+        "resend_api_key",
         "password",
         "os_security_key",
     }
@@ -30,8 +31,7 @@ _DROPPED_FIELDS = frozenset(
 _ENV_SECRETS = (
     "OPENAI_API_KEY",
     "OS_SECURITY_KEY",
-    "SMTP_PASSWORD",
-    "SMTP_USER",
+    "RESEND_API_KEY",
 )
 
 
@@ -51,6 +51,7 @@ def get_logger() -> logging.Logger:
 def redact(text: str) -> str:
     """Remove API keys, email addresses, phone numbers, and six-digit codes."""
     cleaned = _API_KEY.sub("[redacted]", text)
+    cleaned = _RESEND_KEY.sub("[redacted]", cleaned)
     cleaned = _EMAIL.sub("[redacted]", cleaned)
     cleaned = _PHONE.sub("[redacted]", cleaned)
     cleaned = _CODE.sub("[redacted]", cleaned)

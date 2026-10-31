@@ -1,13 +1,17 @@
 """Serve the Emporio da Musica assistant with AgentOS."""
 
 import os
+from typing import TYPE_CHECKING
 
 from emporio_agent.agent.assistant import attach_guards, build_agent
 from emporio_agent.config import load_settings
 from emporio_agent.guard_path import guard_pre_hook
 
+if TYPE_CHECKING:
+    from agno.os import AgentOS
 
-def create_agent_os() -> object:
+
+def create_agent_os() -> "AgentOS":
     """Build AgentOS with tracing, the scheduler, MCP, and file tools left off."""
     settings = load_settings()
     if not settings.openai_api_key:

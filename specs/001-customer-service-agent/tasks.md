@@ -23,8 +23,8 @@
 **Purpose**: Project initialization and basic structure
 
 - [x] T001 [P] Create the package tree from plan.md: `src/emporio_agent/__init__.py`, `src/emporio_agent/__main__.py`, `src/emporio_agent/agent/`, `src/emporio_agent/tools/`, `src/emporio_agent/services/`, `src/emporio_agent/data/`, `src/emporio_agent/knowledge/`, `src/emporio_agent/mail/`, and `tests/unit/`. This prototype has no `tests/integration/` package
-- [x] T002 [P] Declare Python >=3.13 and the dependencies Agno, OpenAI (`openai`, installed beside `agno` as in the current Agno install docs), ChromaDB, Pandas, and Pytest in `pyproject.toml`, and configure Ruff for PEP 8 and PEP 257. Policy embeddings stay `text-embedding-3-small`
-- [x] T003 [P] Add root `.gitignore` entries for `.env`, `var/`, and the mail outbox, without ignoring `data/*.csv` or `data/políticas_da_loja.pdf`, and add `.env.example` with `DATA_DIR=data`, `SQLITE_PATH=var/emporio.db`, `SESSION_DB_PATH=var/sessions.db`, `CHROMA_PATH=var/chroma`, and empty `OPENAI_API_KEY`, `OPENAI_MODEL`, `OS_SECURITY_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASSWORD`
+- [x] T002 [P] Declare Python >=3.13 and the dependencies Agno, OpenAI (`openai`, installed beside `agno` as in the current Agno install docs), ChromaDB, Pandas, Resend (`resend`), and Pytest in `pyproject.toml`, and configure Ruff for PEP 8 and PEP 257. Policy embeddings stay `text-embedding-3-small`
+- [x] T003 [P] Add root `.gitignore` entries for `.env`, `var/`, and the mail outbox, without ignoring `data/*.csv` or `data/políticas_da_loja.pdf`, and add `.env.example` with `DATA_DIR=data`, `SQLITE_PATH=var/emporio.db`, `SESSION_DB_PATH=var/sessions.db`, `CHROMA_PATH=var/chroma`, and empty `OPENAI_API_KEY`, `OPENAI_MODEL`, `OS_SECURITY_KEY`, `RESEND_API_KEY`, and `RESEND_FROM`
 
 ---
 
@@ -34,11 +34,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T004 [P] Implement environment loading in `src/emporio_agent/config.py` for `OPENAI_API_KEY`, `OPENAI_MODEL`, `OS_SECURITY_KEY`, and optional SMTP variables, with no default secret. Default `DATA_DIR` to `data/`, `SQLITE_PATH` to `var/emporio.db`, `SESSION_DB_PATH` to `var/sessions.db`, and `CHROMA_PATH` to `var/chroma`
-- [x] T005 [P] Implement English logging in `src/emporio_agent/logging.py` that records error codes and never logs an API key, email address, phone number, ownership code, or SMTP password
+- [x] T004 [P] Implement environment loading in `src/emporio_agent/config.py` for `OPENAI_API_KEY`, `OPENAI_MODEL`, `OS_SECURITY_KEY`, and optional `RESEND_API_KEY` and `RESEND_FROM`, with no default secret. Default `DATA_DIR` to `data/`, `SQLITE_PATH` to `var/emporio.db`, `SESSION_DB_PATH` to `var/sessions.db`, and `CHROMA_PATH` to `var/chroma`
+- [x] T005 [P] Implement English logging in `src/emporio_agent/logging.py` that records error codes and never logs an API key, email address, phone number, ownership code, or Resend API key
 - [x] T006 [P] Write `src/emporio_agent/data/schema.sql` for `products`, `categories`, `customers`, `orders`, `order_items`, `promotions`, `ownership_codes`, and `order_grants` using the fields and rules in `specs/001-customer-service-agent/data-model.md`
 - [x] T007 Implement the SQLite connection helper in `src/emporio_agent/data/connection.py` using `SQLITE_PATH` from `src/emporio_agent/config.py` and applying `src/emporio_agent/data/schema.sql`
-- [x] T008 Implement Pandas ingest in `src/emporio_agent/data/ingest.py` that reads the six `desafio_tecnico_ai_eng` CSVs from `data/` (`DATA_DIR` when set), replaces operational rows in one transaction so a second run does not duplicate them, and fails with the missing file name when a required CSV is absent. Log that failure through `src/emporio_agent/logging.py` with the error code and the file name, and without an API key, email address, phone number, ownership code, or SMTP password
+- [x] T008 Implement Pandas ingest in `src/emporio_agent/data/ingest.py` that reads the six `desafio_tecnico_ai_eng` CSVs from `data/` (`DATA_DIR` when set), replaces operational rows in one transaction so a second run does not duplicate them, and fails with the missing file name when a required CSV is absent. Log that failure through `src/emporio_agent/logging.py` with the error code and the file name, and without an API key, email address, phone number, ownership code, or Resend API key
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -106,7 +106,7 @@ Execute this phase in the order written below, before Phase 4. T047, T048, and T
 
 ### Implementation for User Story 3
 
-- [x] T023 [P] [US3] Implement `src/emporio_agent/mail/sender.py` with an in-memory sender for tests and an optional SMTP sender, never putting the code or the email address in the tool result. Log a send failure through `src/emporio_agent/logging.py` with the sender error name only
+- [x] T023 [P] [US3] Implement `src/emporio_agent/mail/sender.py` with an in-memory sender for tests and a Resend sender that posts HTML when `RESEND_API_KEY` and `RESEND_FROM` are set, otherwise the local outbox. Never put the code or the email address in the tool result. Log a send failure through `src/emporio_agent/logging.py` with the sender error name only
 - [x] T024 [P] [US3] Implement `src/emporio_agent/data/order_repository.py` so order lookup trims spaces and compares case-insensitively, selects only the allow-listed columns, and does not multiply catalog price by quantity
 - [x] T025 [P] [US3] Implement `src/emporio_agent/data/otp_repository.py` so `ownership_codes` stores `code_hash` rather than the raw code, `expires_at` is `sent_at` plus 15 minutes, and a new code marks the previous row `replaced`
 - [x] T026 [US3] Implement `src/emporio_agent/services/order_service.py` for `request_order_code`, `confirm_order_code`, and `get_order_details`, including `order_grants` keyed by `session_id` from the run context and not from model input. `get_order_details` accepts `fields` and returns only that subset of `status`, `order_date`, `items`, and `total_brl`. Log order failures through `src/emporio_agent/logging.py` with the order id and the error code, never the code digits or the email
@@ -153,7 +153,7 @@ Execute this phase in the order written below, before Phase 4. T047, T048, and T
 - [x] T035 [US5] After reading the current Agno Knowledge documentation, implement semantic chunking of the policy PDF with embeddings model `text-embedding-3-small` and Chroma collection `store_policies` in `src/emporio_agent/knowledge/policy_knowledge.py`
 - [x] T036 [US5] Implement `src/emporio_agent/services/policy_service.py` so `question` is required, trimmed, and at most 500 characters, and so passages are not used as price, stock, order, or promotion facts
 - [x] T037 [US5] Implement `search_policies` in `src/emporio_agent/tools/policy_tools.py` delegating to the service
-- [x] T038 [US5] Extend `src/emporio_agent/data/ingest.py` to rebuild the `store_policies` collection from `data/políticas_da_loja.pdf` on each ingest and to fail when that PDF is missing. Log that failure through `src/emporio_agent/logging.py` with the error code and the file name, and without an API key, email address, phone number, ownership code, or SMTP password, the same way T008 logs a missing CSV
+- [x] T038 [US5] Extend `src/emporio_agent/data/ingest.py` to rebuild the `store_policies` collection from `data/políticas_da_loja.pdf` on each ingest and to fail when that PDF is missing. Log that failure through `src/emporio_agent/logging.py` with the error code and the file name, and without an API key, email address, phone number, ownership code, or Resend API key, the same way T008 logs a missing CSV
 - [x] T039 [US5] Append `search_policies` to the existing tool list on the agent in `src/emporio_agent/agent/assistant.py` and state in `src/emporio_agent/agent/instructions.py` that a mixed price-and-policy question must call both `search_products` and `search_policies`, that the price comes only from the catalog tool, and that a policy passage is not a price, stock, order, or promotion fact. Keep every tool already registered. Do not run the `assistant.py` edit at the same time as T016, T021, T028, T033, T041, or T049. Do not run the `instructions.py` edit at the same time as T015 or T042
 
 **Checkpoint**: Policy answers work from the PDF index alone
