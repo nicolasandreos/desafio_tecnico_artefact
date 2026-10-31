@@ -10,3 +10,7 @@ wheels/
 .venv
 
 .env*
+!.env.example
+
+# Generated stores. The supplied CSVs and policy PDF in data/ stay tracked.
+var/
