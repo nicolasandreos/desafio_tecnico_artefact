@@ -134,6 +134,10 @@ O histórico fica em memória, no `InMemoryDb` do Agno, com as dez últimas inte
 
 ## Decisões deste protótipo
 
+As políticas usam RAG sobre o PDF. O documento traz regras em texto corrido — troca, garantia, pagamento — e o cliente pergunta com as próprias palavras. Na subida, o PDF é dividido em trechos semânticos, cada trecho vira um embedding e o Chroma devolve os trechos mais parecidos com a pergunta, antes de o modelo responder. A busca roda em toda mensagem do usuário.
+
+Catálogo, promoções, pedidos e o perfil da loja usam tool calling. Esses dados estão em CSV, com campos definidos: preço, disponibilidade, categoria, status, data, itens e total. Cada ferramenta recebe parâmetros, lê os arquivos com Pandas e devolve só os campos permitidos. O modelo escolhe qual ferramenta chamar e com quais argumentos; o valor devolvido é o da linha, o mesmo a cada consulta igual. A confirmação do pedido também fica em Python: o envio do código de 6 dígitos, a validade de 15 minutos e a lista do que pode aparecer na resposta. Essa checagem precisa valer mesmo que a conversa tente contorná-la.
+
 O Agno foi escolhido pela rapidez para montar o agente e porque já entrega o AgentOS: uma API, uma interface para testar e o rastreio do que acontece por baixo, sem construir a tela primeiro. Também padroniza a comunicação com os provedores e os modelos de IA. Ferramentas, instruções e o fluxo de atendimento ficam iguais quando o modelo muda. Para testar o Gemini no lugar do GPT-5.4 Mini, basta trocar o modelo usado pelo agente.
 
 O desenvolvimento foi feito no Cursor, com Spec-Driven Development. A constituição guarda as regras do projeto. As specs descrevem o comportamento, ainda sem amarrar a tecnologia. O plano escolhe as tecnologias. As tasks quebram esse plano em entregas pequenas, revisadas uma a uma. Esses documentos estão em `.specify/` e em `specs/`.
