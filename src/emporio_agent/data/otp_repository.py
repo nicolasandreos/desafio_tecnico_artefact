@@ -1,10 +1,38 @@
-"""Store ownership codes as hashes. The raw code is never written."""
+"""Store ownership codes and grants in process memory.
+
+The raw code is never written. This state dies with the process.
+"""
 
 from __future__ import annotations
 
 import hashlib
-import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+
+
+@dataclass
+class _StoredCode:
+    """One sent code. The raw digits are not a field."""
+
+    order_id: str
+    code_hash: str
+    sent_at: datetime
+    expires_at: datetime
+    replaced: bool = False
+
+
+@dataclass(frozen=True)
+class ActiveCode:
+    """Latest unreplaced ownership code for one order."""
+
+    code_hash: str
+    sent_at: datetime
+    expires_at: datetime
+    replaced: bool
+
+
+_codes: list[_StoredCode] = []
+_grants: dict[tuple[str, str], datetime] = {}
 
 
 def hash_code(code: str) -> str:
@@ -12,71 +40,41 @@ def hash_code(code: str) -> str:
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
-def store_code(
-    connection: sqlite3.Connection,
-    order_id: str,
-    code: str,
-    sent_at: datetime,
-) -> None:
+def store_code(order_id: str, code: str, sent_at: datetime) -> None:
     """Replace the previous code and store the new hash for 15 minutes."""
-    expires_at = sent_at + timedelta(minutes=15)
-    connection.execute(
-        """
-        UPDATE ownership_codes
-        SET replaced = 1
-        WHERE lower(order_id) = lower(?) AND replaced = 0
-        """,
-        (order_id,),
-    )
-    connection.execute(
-        """
-        INSERT INTO ownership_codes (order_id, code_hash, sent_at, expires_at, replaced)
-        VALUES (?, ?, ?, ?, 0)
-        """,
-        (order_id, hash_code(code), sent_at.isoformat(), expires_at.isoformat()),
+    key = order_id.casefold()
+    for row in _codes:
+        if row.order_id.casefold() == key and not row.replaced:
+            row.replaced = True
+    _codes.append(
+        _StoredCode(
+            order_id=order_id,
+            code_hash=hash_code(code),
+            sent_at=sent_at,
+            expires_at=sent_at + timedelta(minutes=15),
+        )
     )
 
 
-def find_active(connection: sqlite3.Connection, order_id: str) -> sqlite3.Row | None:
-    """Return the latest unreplaced code row for an order."""
-    return connection.execute(
-        """
-        SELECT code_hash, sent_at, expires_at, replaced
-        FROM ownership_codes
-        WHERE lower(order_id) = lower(?) AND replaced = 0
-        ORDER BY code_id DESC
-        LIMIT 1
-        """,
-        (order_id,),
-    ).fetchone()
+def find_active(order_id: str) -> ActiveCode | None:
+    """Return the latest unreplaced code for an order."""
+    key = order_id.casefold()
+    for row in reversed(_codes):
+        if row.order_id.casefold() == key and not row.replaced:
+            return ActiveCode(
+                code_hash=row.code_hash,
+                sent_at=row.sent_at,
+                expires_at=row.expires_at,
+                replaced=row.replaced,
+            )
+    return None
 
 
-def save_grant(
-    connection: sqlite3.Connection,
-    session_id: str,
-    order_id: str,
-    granted_at: datetime,
-) -> None:
+def save_grant(session_id: str, order_id: str, granted_at: datetime) -> None:
     """Record that this session may read the order."""
-    connection.execute(
-        """
-        INSERT INTO order_grants (session_id, order_id, granted_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(session_id, order_id)
-        DO UPDATE SET granted_at = excluded.granted_at
-        """,
-        (session_id, order_id, granted_at.isoformat()),
-    )
+    _grants[(session_id, order_id.casefold())] = granted_at
 
 
-def has_grant(connection: sqlite3.Connection, session_id: str, order_id: str) -> bool:
+def has_grant(session_id: str, order_id: str) -> bool:
     """Return True when this session has already verified the order."""
-    row = connection.execute(
-        """
-        SELECT 1
-        FROM order_grants
-        WHERE session_id = ? AND lower(order_id) = lower(?)
-        """,
-        (session_id, order_id),
-    ).fetchone()
-    return row is not None
+    return (session_id, order_id.casefold()) in _grants

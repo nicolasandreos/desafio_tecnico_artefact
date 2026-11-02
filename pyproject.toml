@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "agno[os,sqlite,openai,chromadb,knowledge,pdf]",
+    "agno[os,openai,chromadb,knowledge,pdf]",
     "openai",
     "chromadb",
     "pandas",
@@ -28,11 +28,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/emporio_agent"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/emporio_agent/data/schema.sql" = "emporio_agent/data/schema.sql"
-
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 
 [tool.ruff]

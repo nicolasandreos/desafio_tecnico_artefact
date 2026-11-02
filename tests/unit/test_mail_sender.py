@@ -20,12 +20,9 @@ def _settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "openai_api_key": None,
         "openai_model": None,
-        "os_security_key": None,
         "resend_api_key": "re_testkeyvalue1",
         "resend_from": "loja@example.com",
         "data_dir": Path("data"),
-        "sqlite_path": Path("var/emporio.db"),
-        "session_db_path": Path("var/sessions.db"),
         "chroma_path": Path("var/chroma"),
         "outbox_dir": Path("var/outbox"),
     }

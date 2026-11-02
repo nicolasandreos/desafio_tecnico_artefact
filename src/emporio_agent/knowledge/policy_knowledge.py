@@ -1,8 +1,16 @@
-"""Index and search the store policy PDF with semantic chunks."""
+"""Index the store policy PDF and expose it as one Agno knowledge base."""
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+
+from agno.knowledge.chunking.semantic import SemanticChunking
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.knowledge.knowledge import Knowledge
+from agno.knowledge.reader.pdf_reader import PDFReader
+from agno.vectordb.chroma import ChromaDb
+from agno.vectordb.search import SearchType
 
 from emporio_agent.config import load_settings
 from emporio_agent.logging import log_failure
@@ -10,83 +18,83 @@ from emporio_agent.logging import log_failure
 POLICY_SOURCE = "políticas_da_loja.pdf"
 _COLLECTION = "store_policies"
 _EMBEDDING_MODEL = "text-embedding-3-small"
-_MAX_DISTANCE = 0.55
+_MARK = "index_complete"
+_MAX_RESULTS = 3
 
 
-def rebuild_policy_index(pdf_path: Path) -> None:
-    """Replace the store_policies collection with semantic chunks of the PDF.
+def ensure_policy_index() -> Knowledge:
+    """Return the policy knowledge base, indexing the PDF when the mark differs.
 
     Raises:
         FileNotFoundError: The PDF is absent. The message is the file name.
     """
-    path = Path(pdf_path)
-    if not path.is_file():
-        log_failure("missing_file", file_name=path.name)
-        raise FileNotFoundError(path.name)
-    _write_index(path)
-
-
-def search_passages(question: str) -> list[dict[str, object]]:
-    """Return relevant policy passages. A missing index raises FileNotFoundError."""
-    knowledge = _knowledge()
-    if not knowledge.vector_db.exists():
-        raise FileNotFoundError(_COLLECTION)
-    documents = knowledge.search(question, max_results=4)
-    passages: list[dict[str, object]] = []
-    for document in documents:
-        distance = document.meta_data.get("similarity_score")
-        if isinstance(distance, (int, float)) and not isinstance(distance, bool):
-            if float(distance) > _MAX_DISTANCE:
-                continue
-        text = document.content.strip()
-        if text == "":
-            continue
-        source = document.meta_data.get("source") or POLICY_SOURCE
-        passages.append({"text": text, "source": str(source)})
-    return passages
-
-
-def _write_index(path: Path) -> None:
-    """Chunk the PDF semantically and store the embeddings in Chroma."""
-    from agno.knowledge.chunking.semantic import SemanticChunking
-    from agno.knowledge.embedder.openai import OpenAIEmbedder
-    from agno.knowledge.knowledge import Knowledge
-    from agno.knowledge.reader.pdf_reader import PDFReader
-
-    embedder = OpenAIEmbedder(id=_EMBEDDING_MODEL)
-    vector_db = _chroma(embedder)
-    if vector_db.exists():
+    pdf_path = Path(load_settings().data_dir) / POLICY_SOURCE
+    if not pdf_path.is_file():
+        log_failure("missing_file", file_name=POLICY_SOURCE)
+        raise FileNotFoundError(POLICY_SOURCE)
+    digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    knowledge = _policy_knowledge()
+    vector_db = knowledge.vector_db
+    if isinstance(vector_db, ChromaDb) and _is_complete(vector_db, digest):
+        return knowledge
+    if isinstance(vector_db, ChromaDb) and vector_db.exists():
         vector_db.drop()
-    knowledge = Knowledge(vector_db=vector_db)
+    try:
+        _index(knowledge, pdf_path)
+        if not isinstance(vector_db, ChromaDb) or vector_db.get_count() <= 0:
+            raise RuntimeError("Policy index produced no chunks")
+        _mark_complete(vector_db, digest)
+    except Exception:
+        log_failure("index_failed", file_name=POLICY_SOURCE)
+        if isinstance(vector_db, ChromaDb):
+            vector_db.drop()
+        raise
+    return knowledge
+
+
+def _policy_knowledge() -> Knowledge:
+    """Return the persistent policy collection and its semantic reader."""
+    embedder = OpenAIEmbedder(id=_EMBEDDING_MODEL)
+    settings = load_settings()
+    settings.chroma_path.mkdir(parents=True, exist_ok=True)
+    vector_db = ChromaDb(
+        collection=_COLLECTION,
+        path=str(settings.chroma_path),
+        persistent_client=True,
+        embedder=embedder,
+        search_type=SearchType.vector,
+    )
+    return Knowledge(vector_db=vector_db, max_results=_MAX_RESULTS)
+
+
+def _index(knowledge: Knowledge, pdf_path: Path) -> None:
+    """Insert semantic chunks of the PDF. Products and orders are not embedded."""
+    embedder = knowledge.vector_db.embedder
     reader = PDFReader(
         split_on_pages=False,
         chunking_strategy=SemanticChunking(embedder=embedder),
     )
     knowledge.insert(
         name=POLICY_SOURCE,
-        path=str(path),
+        path=str(pdf_path),
         reader=reader,
         metadata={"source": POLICY_SOURCE},
     )
 
 
-def _knowledge() -> object:
-    """Return the policy knowledge base without rebuilding it."""
-    from agno.knowledge.embedder.openai import OpenAIEmbedder
-    from agno.knowledge.knowledge import Knowledge
+def _is_complete(vector_db: ChromaDb, digest: str) -> bool:
+    """Return True when the collection mark equals the current PDF hash."""
+    if not vector_db.exists():
+        return False
+    metadata = _collection(vector_db).metadata or {}
+    return metadata.get(_MARK) == digest
 
-    return Knowledge(vector_db=_chroma(OpenAIEmbedder(id=_EMBEDDING_MODEL)))
+
+def _mark_complete(vector_db: ChromaDb, digest: str) -> None:
+    """Record the PDF hash only after chunks are stored."""
+    _collection(vector_db).modify(metadata={_MARK: digest})
 
 
-def _chroma(embedder: object) -> object:
-    """Return the persistent store_policies collection."""
-    from agno.vectordb.chroma import ChromaDb
-
-    settings = load_settings()
-    settings.chroma_path.mkdir(parents=True, exist_ok=True)
-    return ChromaDb(
-        collection=_COLLECTION,
-        path=str(settings.chroma_path),
-        persistent_client=True,
-        embedder=embedder,
-    )
+def _collection(vector_db: ChromaDb):
+    """Return the Chroma collection for the policy index."""
+    return vector_db.client.get_collection(name=vector_db.collection_name)

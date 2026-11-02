@@ -6,12 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from emporio_agent.data.ingest import ingest
-from emporio_agent.knowledge.policy_knowledge import rebuild_policy_index
+from emporio_agent.knowledge.policy_knowledge import ensure_policy_index
 from emporio_agent.logging import get_logger, log_failure, redact
 from emporio_agent.mail.sender import safe_send
 from emporio_agent.services.order_service import request_order_code
-from tests.unit.support import insert_customer, insert_order, open_database
+from tests.unit.support import reset_ownership_store, write_table
 
 
 class _Boom:
@@ -20,6 +19,12 @@ class _Boom:
     def send(self, to_address: str, code: str, order_id: str) -> None:
         """Raise an error that includes values the log must drop."""
         raise OSError(f"failed for {to_address} code {code}")
+
+
+@pytest.fixture(autouse=True)
+def _fresh_ownership_store() -> None:
+    """A code from another test must not change this log."""
+    reset_ownership_store()
 
 
 def test_redact_drops_api_keys_emails_and_six_digit_codes() -> None:
@@ -61,16 +66,20 @@ def test_missing_csv_is_logged_without_secrets(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A missing CSV is logged with the file name and without credentials."""
+    """A missing order file is logged as unavailable and without credentials."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-supersecretvalue1")
     monkeypatch.setenv("RESEND_API_KEY", "re_secretvalue123")
     get_logger().propagate = True
     with caplog.at_level(logging.ERROR, logger="emporio_agent"):
-        with pytest.raises(FileNotFoundError, match="categories.csv"):
-            ingest(data_dir=tmp_path)
+        result = request_order_code(
+            "77",
+            data_dir=tmp_path,
+            sender=_Boom(),
+            now=datetime(2026, 10, 31, tzinfo=timezone.utc),
+        )
 
-    assert "missing_file" in caplog.text
-    assert "categories.csv" in caplog.text
+    assert result == {"error": "unavailable"}
+    assert "unavailable" in caplog.text
     assert "sk-supersecretvalue1" not in caplog.text
     assert "re_secretvalue123" not in caplog.text
 
@@ -82,11 +91,12 @@ def test_missing_policy_pdf_is_logged_without_secrets(
 ) -> None:
     """A missing policy PDF is logged with the file name and without credentials."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-supersecretvalue1")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("CHROMA_PATH", str(tmp_path / "chroma"))
     get_logger().propagate = True
-    missing = tmp_path / "políticas_da_loja.pdf"
     with caplog.at_level(logging.ERROR, logger="emporio_agent"):
         with pytest.raises(FileNotFoundError, match="políticas_da_loja.pdf"):
-            rebuild_policy_index(missing)
+            ensure_policy_index()
 
     assert "missing_file" in caplog.text
     assert "políticas_da_loja.pdf" in caplog.text
@@ -111,15 +121,38 @@ def test_order_service_logs_the_order_id_and_not_the_code(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An order failure log contains the order id and the error code, not the digits."""
-    connection = open_database(tmp_path / "orders.db")
-    insert_customer(connection, 3, email="buyer@example.com")
-    insert_order(connection, "77", customer_id=3)
-    connection.commit()
+    folder = tmp_path / "data"
+    write_table(
+        folder,
+        "customers",
+        [
+            {
+                "customer_id": 3,
+                "name": "Ada Customer",
+                "phone": "(67) 90000-0000",
+                "email": "buyer@example.com",
+                "city": "Campo Grande",
+            }
+        ],
+    )
+    write_table(
+        folder,
+        "orders",
+        [
+            {
+                "order_id": "77",
+                "customer_id": 3,
+                "order_date": "2025-10-15",
+                "status": "delivered",
+                "total_brl": "10",
+            }
+        ],
+    )
     get_logger().propagate = True
     with caplog.at_level(logging.ERROR, logger="emporio_agent"):
         result = request_order_code(
             "77",
-            connection=connection,
+            data_dir=folder,
             sender=_Boom(),
             now=datetime(2026, 10, 31, tzinfo=timezone.utc),
         )

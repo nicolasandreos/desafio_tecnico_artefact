@@ -50,8 +50,6 @@ class ResendSender:
 
     def send(self, to_address: str, code: str, order_id: str) -> None:
         """Send a short Portuguese HTML message containing the code."""
-        if self._api_key == "" or self._from_address == "":
-            raise RuntimeError("Resend is not configured")
         resend.api_key = self._api_key
         resend.Emails.send(
             {

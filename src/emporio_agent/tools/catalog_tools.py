@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-import sqlite3
-
-from emporio_agent.data.connection import connect
-from emporio_agent.services.catalog_service import search_products as search_catalog
+from emporio_agent.services.catalog_service import (
+    list_product_categories as list_categories,
+)
+from emporio_agent.services.catalog_service import (
+    search_products as search_catalog,
+)
+from emporio_agent.services.catalog_service import (
+    search_products_by_brand as search_brand,
+)
 
 
 def search_products(query: str) -> dict[str, object]:
-    """Search product names. query is required, trimmed, and at most 200 characters."""
+    """Search the catalog by product name or category name.
+
+    query is trimmed and at most 200 characters. Accents and singular or
+    plural forms still match, so violão matches the category Violões.
+    Description and specs are not searched. More than five matches returns
+    too_broad and the match count, with no product rows.
+    """
     if (
         not isinstance(query, str)
         or query != query.strip()
@@ -17,21 +28,31 @@ def search_products(query: str) -> dict[str, object]:
         or len(query) > 200
     ):
         return {"error": "invalid_input"}
-    connection, error = _open()
-    if error is not None:
-        return error
-    assert connection is not None
-    try:
-        return search_catalog(query, connection=connection)
-    finally:
-        connection.close()
+    return search_catalog(query)
 
 
-def _open() -> tuple[object | None, dict[str, str] | None]:
-    """Open the operational database, or return unavailable."""
-    try:
-        return connect(create=False), None
-    except FileNotFoundError:
-        return None, {"error": "unavailable"}
-    except sqlite3.Error:
-        return None, {"error": "unavailable"}
+def list_product_categories() -> dict[str, object]:
+    """List every instrument category in the catalog.
+
+    Each category has name and description, including a category that
+    has no product yet. An empty category table is not_found.
+    """
+    return list_categories()
+
+
+def search_products_by_brand(brand: str) -> dict[str, object]:
+    """Return products of one manufacturer.
+
+    brand is trimmed and at most 200 characters. The manufacturer must
+    appear as a whole word in the product name, so Yamaha matches
+    Yamaha C40 and Bateria Acústica Yamaha. Description and specs are
+    not searched. Every match is returned.
+    """
+    if (
+        not isinstance(brand, str)
+        or brand != brand.strip()
+        or brand == ""
+        or len(brand) > 200
+    ):
+        return {"error": "invalid_input"}
+    return search_brand(brand)

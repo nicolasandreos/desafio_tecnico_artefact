@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 
 from agno.run import RunContext
 
-from emporio_agent.data.connection import connect
 from emporio_agent.mail.sender import build_sender
 from emporio_agent.services.order_service import (
     confirm_order_code as confirm_code,
@@ -32,14 +30,7 @@ def request_order_code(
     del session_id, run_context
     if not isinstance(order_id, str) or order_id.strip() == "":
         return {"error": "invalid_input"}
-    connection, error = _open()
-    if error is not None:
-        return error
-    assert connection is not None
-    try:
-        return send_code(order_id, connection=connection, sender=build_sender())
-    finally:
-        connection.close()
+    return send_code(order_id, sender=build_sender())
 
 
 def confirm_order_code(
@@ -54,19 +45,11 @@ def confirm_order_code(
         return {"error": "invalid_input"}
     if not isinstance(code, str) or _CODE.fullmatch(code) is None:
         return {"error": "invalid_input"}
-    connection, error = _open()
-    if error is not None:
-        return error
-    assert connection is not None
-    try:
-        return confirm_code(
-            order_id,
-            code,
-            session_id=_session_id(run_context),
-            connection=connection,
-        )
-    finally:
-        connection.close()
+    return confirm_code(
+        order_id,
+        code,
+        session_id=_session_id(run_context),
+    )
 
 
 def get_order_details(
@@ -83,19 +66,11 @@ def get_order_details(
         return {"error": "invalid_input"}
     if any(not isinstance(field, str) or field not in _FIELDS for field in fields):
         return {"error": "invalid_input"}
-    connection, error = _open()
-    if error is not None:
-        return error
-    assert connection is not None
-    try:
-        return read_order(
-            order_id,
-            fields,
-            session_id=_session_id(run_context),
-            connection=connection,
-        )
-    finally:
-        connection.close()
+    return read_order(
+        order_id,
+        fields,
+        session_id=_session_id(run_context),
+    )
 
 
 def _session_id(run_context: RunContext | None) -> str:
@@ -106,13 +81,3 @@ def _session_id(run_context: RunContext | None) -> str:
     if isinstance(value, str):
         return value
     return ""
-
-
-def _open() -> tuple[sqlite3.Connection | None, dict[str, str] | None]:
-    """Open the operational database, or return unavailable."""
-    try:
-        return connect(create=False), None
-    except FileNotFoundError:
-        return None, {"error": "unavailable"}
-    except sqlite3.Error:
-        return None, {"error": "unavailable"}

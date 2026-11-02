@@ -1,1 +1,1 @@
-"""SQLite access and CSV ingest for operational store data."""
+"""CSV reads for store facts, plus in-process ownership codes."""
