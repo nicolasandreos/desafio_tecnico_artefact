@@ -8,7 +8,6 @@ import pytest
 from emporio_agent.config import Settings
 from emporio_agent.logging import get_logger
 from emporio_agent.mail.sender import (
-    OutboxSender,
     ResendSender,
     build_sender,
     safe_send,
@@ -24,7 +23,6 @@ def _settings(**overrides: object) -> Settings:
         "resend_from": "loja@example.com",
         "data_dir": Path("data"),
         "chroma_path": Path("var/chroma"),
-        "outbox_dir": Path("var/outbox"),
     }
     values.update(overrides)
     return Settings(**values)  # type: ignore[arg-type]
@@ -94,20 +92,12 @@ def test_build_sender_uses_resend_when_configured(
     assert isinstance(build_sender(), ResendSender)
 
 
-def test_build_sender_uses_the_outbox_without_resend(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Missing Resend settings keep the local outbox."""
+def test_build_sender_requires_resend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing Resend settings refuse to build a sender."""
     monkeypatch.setattr(
         "emporio_agent.mail.sender.load_settings",
-        lambda: _settings(
-            resend_api_key=None,
-            resend_from=None,
-            outbox_dir=tmp_path,
-        ),
+        lambda: _settings(resend_api_key=None, resend_from=None),
     )
 
-    sender = build_sender()
-
-    assert isinstance(sender, OutboxSender)
+    with pytest.raises(RuntimeError, match="RESEND_API_KEY"):
+        build_sender()

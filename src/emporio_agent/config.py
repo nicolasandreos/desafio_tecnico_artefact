@@ -18,7 +18,6 @@ class Settings:
     resend_from: str | None
     data_dir: Path
     chroma_path: Path
-    outbox_dir: Path
 
 
 def load_settings() -> Settings:
@@ -31,7 +30,6 @@ def load_settings() -> Settings:
         resend_from=os.environ.get("RESEND_FROM"),
         data_dir=Path(os.environ.get("DATA_DIR", "data")),
         chroma_path=Path(os.environ.get("CHROMA_PATH", "var/chroma")),
-        outbox_dir=Path(os.environ.get("OUTBOX_DIR", "var/outbox")),
     )
 
 
