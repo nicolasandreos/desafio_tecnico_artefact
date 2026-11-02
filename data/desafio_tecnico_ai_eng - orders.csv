@@ -19,3 +19,4 @@ order_id,customer_id,order_date,status,total_brl,payment_method,tracking_code,es
 18,17,2026-02-08,cancelled,459.9,credit_12x,,,Item fora de estoque no momento do pedido
 19,3,2026-02-22,cancelled,7499,boleto,,,Pagamento não confirmado dentro do prazo
 20,7,2026-03-08,cancelled,1400,credit_3x,,,Endereço de entrega inválido informado pelo cliente
+21,51,2026-10-28,confirmed,599.9,pix,,,
