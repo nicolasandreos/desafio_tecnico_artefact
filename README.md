@@ -22,9 +22,19 @@ Esta é uma versão inicial, pensada para cobrir as principais dúvidas de um cl
 - Uma conta [Resend](https://resend.com) com um remetente verificado, usada para enviar o código do pedido
 - Node.js apenas se for usar a interface alternativa descrita mais abaixo
 
+## Instalação
+
+Na raiz do projeto, clone o repositório e instale as dependências:
+
+```bash
+git clone https://github.com/nicolasandreos/desafio_tecnico_artefact.git
+cd desafio_tecnico_artefact
+uv sync
+```
+
 ## Configuração
 
-Na raiz do projeto, copie o exemplo e preencha os valores:
+Ainda na raiz, copie o exemplo e preencha os valores:
 
 ```bash
 cp .env.example .env
@@ -52,12 +62,11 @@ CHROMA_PATH=var/chroma
 
 O logger do projeto já remove e-mails, telefones, códigos de 6 dígitos e chaves de API antes de escrever uma falha.
 
-## Instalação e execução
+## Execução
 
-Na raiz do projeto:
+Com o `.env` preenchido, suba o agente:
 
 ```bash
-uv sync
 uv run python -m emporio_agent
 ```
 
